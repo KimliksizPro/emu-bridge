@@ -1,0 +1,11 @@
+build/
+myvenv/
+*.o
+moc_*
+qrc_*
+.qmake.stash
+pkgbuild/src/
+pkgbuild/pkg/
+*.pkg.tar.*
+*.AppImage
+AppDir/

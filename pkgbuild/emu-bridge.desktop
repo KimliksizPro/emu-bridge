@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ADB Bridge
+Comment=Universal WebUSB to ADB bridge
+Exec=emu-bridge
+Icon=emu-bridge
+Terminal=false
+Categories=Development;Utility;
+Keywords=adb;android;webusb;bridge;
+StartupNotify=true

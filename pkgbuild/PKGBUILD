@@ -1,0 +1,25 @@
+pkgname=emu-bridge
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Universal WebUSB to ADB bridge"
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('qt6-base' 'qt6-declarative')
+makedepends=('qt6-base' 'qt6-declarative')
+source=("emu-bridge.desktop" "emu-bridge.svg")
+sha256sums=('SKIP' 'SKIP')
+
+build() {
+  local root
+  root="$(CDPATH= cd -- "$startdir/.." && pwd)"
+  mkdir -p "$srcdir/build"
+  cd "$srcdir/build"
+  qmake6 "$root/emu-bridge.pro"
+  make -j"$(nproc)"
+}
+
+package() {
+  install -Dm755 "$srcdir/build/emu-bridge" "$pkgdir/usr/bin/emu-bridge"
+  install -Dm644 "$srcdir/emu-bridge.desktop" "$pkgdir/usr/share/applications/emu-bridge.desktop"
+  install -Dm644 "$srcdir/emu-bridge.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/emu-bridge.svg"
+}
