@@ -4,8 +4,8 @@ pkgrel=1
 pkgdesc="Universal WebUSB to ADB bridge"
 arch=('x86_64' 'aarch64')
 license=('MIT')
-depends=('qt6-base' 'qt6-declarative')
-makedepends=('qt6-base' 'qt6-declarative')
+depends=('qt6-base' 'qt6-declarative' 'android-tools')
+makedepends=('qt6-base' 'qt6-declarative' 'android-tools')
 source=("emu-bridge.desktop" "emu-bridge.svg")
 sha256sums=('SKIP' 'SKIP')
 

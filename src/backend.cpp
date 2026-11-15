@@ -14,8 +14,11 @@ Backend::Backend(QObject *parent) : QObject(parent) {
 
     connect(&m_bridge, &AdbBridge::logMessage, this, &Backend::appendLog);
 
-    connect(&m_adbProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus status) {
+    connect(&m_adbProcess, &QProcess::stateChanged, this, [this](QProcess::ProcessState) {
         emit scanningChanged();
+    });
+
+    connect(&m_adbProcess, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus status) {
         if (exitCode != 0 || status != QProcess::NormalExit) {
             appendLog("ADB cihaz taraması başarısız oldu.");
             setStatusText("ADB bulunamadı veya çalışmıyor");
@@ -53,7 +56,6 @@ Backend::Backend(QObject *parent) : QObject(parent) {
     });
 
     connect(&m_adbProcess, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-        emit scanningChanged();
         appendLog("adb komutu çalıştırılamadı (PATH içinde değil).");
         setStatusText("adb bulunamadı");
     });
@@ -76,7 +78,7 @@ void Backend::setSelectedDevice(const QString &device) {
 }
 
 void Backend::setPort(int port) {
-    if (port < 1024 || port > 65535 || m_port == port)
+    if (running() || port < 1024 || port > 65535 || m_port == port)
         return;
     m_port = port;
     emit portChanged();
@@ -93,7 +95,6 @@ void Backend::refreshDevices() {
         return;
     }
 
-    emit scanningChanged();
     m_adbProcess.start(adb, {"devices"});
 }
 

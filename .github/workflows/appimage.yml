@@ -6,6 +6,9 @@ on:
     tags: [ 'v*' ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   appimage:
     runs-on: ubuntu-24.04
@@ -22,7 +25,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          qmake6 ../emu-bridge.pro
+          qmake ../emu-bridge.pro
           make -j$(nproc)
 
       - name: Package AppImage
@@ -34,11 +37,11 @@ jobs:
           curl -fsSL -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -fsSL -o linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
-          export QMAKE=$(which qmake6)
+          export QMAKE=$(which qmake)
           export QML_SOURCES_PATHS="$PWD/src"
           export APPIMAGE_EXTRACT_AND_RUN=1
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
-          mv emu-bridge*.AppImage emu-bridge-x86_64.AppImage
+          mv *.AppImage emu-bridge-x86_64.AppImage
 
       - name: Upload AppImage Artifact
         uses: actions/upload-artifact@v4

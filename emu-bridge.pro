@@ -6,13 +6,11 @@ TEMPLATE = app
 
 HEADERS += \
     src/adbbridge.h \
-    src/backend.h \
-    src/theme.h
+    src/backend.h
 
 SOURCES += \
     src/adbbridge.cpp \
     src/backend.cpp \
-    src/main.cpp \
-    src/theme.cpp
+    src/main.cpp
 
 RESOURCES += src/resources.qrc

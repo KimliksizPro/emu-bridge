@@ -6,6 +6,7 @@
 
 namespace {
 constexpr quint32 kMaxChunkSize = 15360; // Avoids 16384-byte USB ZLP stalls.
+constexpr quint64 kMaxWsPayload = 64ULL * 1024ULL * 1024ULL;
 
 QByteArray adbLengthPrefix(int len) {
     return QByteArray::number(len, 16).rightJustified(4, '0');
@@ -66,7 +67,12 @@ void AdbBridge::onNewConnection() {
             m_client->disconnect(this);
             m_client->abort();
             m_client->deleteLater();
+            m_client = nullptr;
             closeAllStreams();
+            if (m_wsUpgraded) {
+                m_wsUpgraded = false;
+                emit clientStateChanged(false);
+            }
         }
         m_client = sock;
         m_wsUpgraded = false;
@@ -168,6 +174,12 @@ void AdbBridge::parseWebSocketFrames() {
             offset = 10;
         }
 
+        if (payloadLen > kMaxWsPayload) {
+            if (m_client)
+                m_client->abort();
+            return;
+        }
+
         const int maskOffset = offset;
         if (masked)
             offset += 4;
@@ -224,19 +236,27 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
         if (!svcBuf.isEmpty() && svcBuf.back() == '\0')
             svcBuf.chop(1);
 
+        if (Stream *existing = m_streams.value(localId, nullptr))
+            closeStream(existing, false);
+
         emit logMessage(QString("Kanal açılıyor [%1]: %2").arg(localId).arg(QString::fromUtf8(svcBuf)));
 
         auto *st = new Stream();
         st->sock = new QTcpSocket(this);
         st->localId = localId;
         st->remoteId = remoteId;
+        m_streams.insert(localId, st);
 
         connect(st->sock, &QTcpSocket::connected, this, [this, st]() {
+            if (st->closed)
+                return;
             const QByteArray tp = ("host:transport:" + m_serial).toUtf8();
             st->sock->write(adbLengthPrefix(tp.size()) + tp);
         });
 
         connect(st->sock, &QTcpSocket::readyRead, this, [this, st, svcBuf]() {
+            if (st->closed)
+                return;
             const QByteArray chunk = st->sock->readAll();
             if (st->step < 2) {
                 st->statusBuf.append(chunk);
@@ -248,7 +268,6 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
                         if (st->step == 1) {
                             st->sock->write(adbLengthPrefix(svcBuf.size()) + svcBuf);
                         } else if (st->step == 2) {
-                            m_streams.insert(st->localId, st);
                             sendAdbPacket("OKAY", st->remoteId, st->localId);
                             if (!st->statusBuf.isEmpty()) {
                                 enqueueStreamData(st, st->statusBuf);
@@ -256,11 +275,7 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
                             }
                         }
                     } else {
-                        st->sock->abort();
-                        sendAdbPacket("CLSE", 0, st->localId);
-                        st->closed = true;
-                        st->sock->deleteLater();
-                        delete st;
+                        closeStream(st, true, 0);
                         return;
                     }
                 }
@@ -270,25 +285,20 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
         });
 
         connect(st->sock, &QTcpSocket::disconnected, this, [this, st]() {
-            if (m_streams.contains(st->localId)) {
+            if (st->closed)
+                return;
+            if (st->step >= 2) {
                 st->eof = true;
                 flushStream(st);
-            } else if (!st->closed) {
-                st->closed = true;
-                sendAdbPacket("CLSE", st->remoteId, st->localId);
-                st->sock->deleteLater();
-                delete st;
+            } else {
+                closeStream(st, true, 0);
             }
         });
 
         connect(st->sock, &QTcpSocket::errorOccurred, this, [this, st](QAbstractSocket::SocketError) {
-            if (!st->closed) {
-                st->closed = true;
-                m_streams.remove(st->localId);
-                sendAdbPacket("CLSE", st->remoteId, st->localId);
-                st->sock->deleteLater();
-                delete st;
-            }
+            if (st->closed)
+                return;
+            closeStream(st, true, st->step >= 2 ? st->remoteId : 0);
         });
 
         st->sock->connectToHost(QHostAddress::LocalHost, 5037);
@@ -296,7 +306,7 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
     }
 
     if (cmd == "WRTE") {
-        if (Stream *st = findStream(arg0, arg1); st && !st->closed) {
+        if (Stream *st = findStream(arg0, arg1); st && !st->closed && st->step >= 2) {
             st->sock->write(payload);
             sendAdbPacket("OKAY", st->remoteId, st->localId);
         }
@@ -304,7 +314,7 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
     }
 
     if (cmd == "OKAY") {
-        if (Stream *st = findStream(arg0, arg1)) {
+        if (Stream *st = findStream(arg0, arg1); st && !st->closed) {
             st->waitingOkay = false;
             flushStream(st);
         }
@@ -312,14 +322,8 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
     }
 
     if (cmd == "CLSE") {
-        if (Stream *st = findStream(arg0, arg1); st && !st->closed) {
-            st->closed = true;
-            m_streams.remove(st->localId);
-            st->sock->disconnectFromHost();
-            sendAdbPacket("CLSE", st->remoteId, st->localId);
-            st->sock->deleteLater();
-            delete st;
-        }
+        if (Stream *st = findStream(arg0, arg1); st && !st->closed)
+            closeStream(st, true, st->remoteId);
     }
 }
 
@@ -381,11 +385,7 @@ void AdbBridge::flushStream(Stream *st) {
         st->waitingOkay = true;
         sendAdbPacket("WRTE", st->remoteId, st->localId, chunk);
     } else if (st->eof) {
-        st->closed = true;
-        m_streams.remove(st->localId);
-        sendAdbPacket("CLSE", st->remoteId, st->localId);
-        st->sock->deleteLater();
-        delete st;
+        closeStream(st, true, st->remoteId);
     }
 }
 
@@ -397,15 +397,33 @@ AdbBridge::Stream *AdbBridge::findStream(quint32 arg0, quint32 arg1) {
     return m_streams.value(arg1, nullptr);
 }
 
+void AdbBridge::closeStream(Stream *st, bool sendClse, quint32 clseRemoteId) {
+    if (!st || st->closed)
+        return;
+    st->closed = true;
+    m_streams.remove(st->localId);
+    if (st->sock) {
+        st->sock->disconnect(this);
+        st->sock->abort();
+        st->sock->deleteLater();
+        st->sock = nullptr;
+    }
+    if (sendClse)
+        sendAdbPacket("CLSE", clseRemoteId, st->localId);
+    delete st;
+}
+
 void AdbBridge::closeAllStreams() {
-    for (Stream *st : m_streams) {
+    const auto all = m_streams.values();
+    m_streams.clear();
+    for (Stream *st : all) {
         st->closed = true;
         if (st->sock) {
             st->sock->disconnect(this);
             st->sock->abort();
             st->sock->deleteLater();
+            st->sock = nullptr;
         }
         delete st;
     }
-    m_streams.clear();
 }

@@ -5,7 +5,6 @@
 #include <QUrl>
 
 #include "backend.h"
-#include "theme.h"
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
@@ -15,11 +14,9 @@ int main(int argc, char *argv[]) {
 
     QQuickStyle::setStyle("Material");
 
-    Theme theme;
     Backend backend;
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("theme", &theme);
     engine.rootContext()->setContextProperty("backend", &backend);
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())

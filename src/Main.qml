@@ -43,11 +43,22 @@ ApplicationWindow {
         onTriggered: root.copiedFeedback = false
     }
 
+    function commitPort() {
+        const val = parseInt(portInput.text)
+        if (!isNaN(val) && val >= 1024 && val <= 65535)
+            backend.port = val
+        portInput.text = backend.port.toString()
+        portInput.focus = false
+    }
+
     Connections {
         target: backend
         function onJsCopied() {
             root.copiedFeedback = true
             copyTimer.restart()
+        }
+        function onLogsChanged() {
+            Qt.callLater(logView.positionViewAtEnd)
         }
     }
 
@@ -148,15 +159,12 @@ ApplicationWindow {
                         selectByMouse: true
                         validator: IntValidator { bottom: 1024; top: 65535 }
                         Layout.preferredWidth: Math.max(34, contentWidth + 2)
-                        onActiveFocusChanged: root.editingPort = activeFocus
-                        onEditingFinished: {
-                            const val = parseInt(text)
-                            if (!isNaN(val))
-                                backend.port = val
-                            else
-                                text = backend.port.toString()
-                            focus = false
+                        onActiveFocusChanged: {
+                            root.editingPort = activeFocus
+                            if (!activeFocus)
+                                root.commitPort()
                         }
+                        onEditingFinished: root.commitPort()
                     }
                 }
             }
@@ -320,7 +328,10 @@ ApplicationWindow {
                     hoverEnabled: true
                     enabled: startBtn.canStart
                     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: backend.toggleBridge()
+                    onClicked: {
+                        root.commitPort()
+                        backend.toggleBridge()
+                    }
                 }
             }
 
@@ -411,8 +422,6 @@ ApplicationWindow {
                     clip: true
                     model: backend.logs
                     spacing: 6
-
-                    onCountChanged: Qt.callLater(positionViewAtEnd)
 
                     delegate: RowLayout {
                         required property string modelData

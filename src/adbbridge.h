@@ -51,6 +51,7 @@ private:
     void enqueueStreamData(Stream *st, const QByteArray &data);
     void flushStream(Stream *st);
     Stream *findStream(quint32 arg0, quint32 arg1);
+    void closeStream(Stream *st, bool sendClse, quint32 clseRemoteId = 0);
     void closeAllStreams();
 
     QTcpServer m_server;
