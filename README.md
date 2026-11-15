@@ -10,6 +10,12 @@ Lightweight native C++ / Qt Quick desktop app that bridges browser WebUSB (`navi
 - Dark & Light theme (`T`)
 - Keyboard shortcuts: `Space` Start/Stop, `R` Refresh, `C` Copy JS, `T` Toggle Theme, `Q` Quit
 
+## Quick Install (Any Linux Distro: Arch, Ubuntu, Fedora, openSUSE — KDE / GNOME / Hyprland)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KimliksizPro/emu-bridge/main/install.sh | sh
+```
+
 ## Build from source
 
 Requires `qt6-base`, `qt6-declarative`, `qmake6`, `make`, and `adb` at runtime.
