@@ -104,6 +104,7 @@ ApplicationWindow {
             spacing: 10
 
             Rectangle {
+                id: statusDot
                 visible: backend.running
                 width: 8
                 height: 8
@@ -113,6 +114,7 @@ ApplicationWindow {
                 SequentialAnimation on opacity {
                     running: backend.running && !backend.browserConnected
                     loops: Animation.Infinite
+                    onRunningChanged: if (!running) statusDot.opacity = 1.0
                     NumberAnimation { to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
                     NumberAnimation { to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
                 }

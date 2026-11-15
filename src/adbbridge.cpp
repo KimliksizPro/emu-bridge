@@ -295,8 +295,8 @@ void AdbBridge::handleAdbCommand(const QByteArray &cmd, quint32 arg0, quint32 ar
             }
         });
 
-        connect(st->sock, &QTcpSocket::errorOccurred, this, [this, st](QAbstractSocket::SocketError) {
-            if (st->closed)
+        connect(st->sock, &QTcpSocket::errorOccurred, this, [this, st](QAbstractSocket::SocketError err) {
+            if (st->closed || err == QAbstractSocket::RemoteHostClosedError)
                 return;
             closeStream(st, true, st->step >= 2 ? st->remoteId : 0);
         });
@@ -392,9 +392,9 @@ void AdbBridge::flushStream(Stream *st) {
 AdbBridge::Stream *AdbBridge::findStream(quint32 arg0, quint32 arg1) {
     if (m_streams.contains(arg0))
         return m_streams.value(arg0);
-    if (arg1 >= 1000 && m_streams.contains(arg1 - 1000))
-        return m_streams.value(arg1 - 1000);
-    return m_streams.value(arg1, nullptr);
+    if (arg1 >= 1000)
+        return m_streams.value(arg1 - 1000, nullptr);
+    return nullptr;
 }
 
 void AdbBridge::closeStream(Stream *st, bool sendClse, quint32 clseRemoteId) {
