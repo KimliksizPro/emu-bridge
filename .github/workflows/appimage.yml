@@ -15,17 +15,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt6
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.7.2'
-          modules: 'qtdeclarative'
+      - name: Install Qt6 and build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            ca-certificates \
+            file \
+            libgl1-mesa-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-window
 
       - name: Build binary
         run: |
           mkdir -p build
           cd build
-          qmake ../emu-bridge.pro
+          qmake6 ../emu-bridge.pro
           make -j$(nproc)
 
       - name: Package AppImage
@@ -37,7 +48,7 @@ jobs:
           curl -fsSL -o /tmp/linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -fsSL -o /tmp/linuxdeploy-plugin-qt-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x /tmp/linuxdeploy-x86_64.AppImage /tmp/linuxdeploy-plugin-qt-x86_64.AppImage
-          export QMAKE=$(which qmake)
+          export QMAKE=$(which qmake6)
           export QML_SOURCES_PATHS="$PWD/src"
           export APPIMAGE_EXTRACT_AND_RUN=1
           /tmp/linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage
