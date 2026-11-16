@@ -1,10 +1,34 @@
 #include "backend.h"
 
 #include <QClipboard>
+#include <QDir>
 #include <QGuiApplication>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTime>
+
+namespace {
+QString findAdbExecutable() {
+    if (const QString inPath = QStandardPaths::findExecutable("adb"); !inPath.isEmpty())
+        return inPath;
+
+    QStringList searchPaths;
+    for (const char *envVar : {"ANDROID_HOME", "ANDROID_SDK_ROOT"}) {
+        const QString sdk = qEnvironmentVariable(envVar);
+        if (!sdk.isEmpty())
+            searchPaths << sdk + "/platform-tools";
+    }
+
+    const QString home = QDir::homePath();
+    searchPaths << home + "/Android/Sdk/platform-tools"
+                << home + "/.local/share/android-sdk/platform-tools"
+                << "/opt/android-sdk/platform-tools"
+                << "/usr/local/bin"
+                << "/usr/bin";
+
+    return QStandardPaths::findExecutable("adb", searchPaths);
+}
+} // namespace
 
 Backend::Backend(QObject *parent) : QObject(parent) {
     connect(&m_bridge, &AdbBridge::clientStateChanged, this, [this](bool connected) {
@@ -88,10 +112,10 @@ void Backend::refreshDevices() {
     if (m_adbProcess.state() != QProcess::NotRunning)
         return;
 
-    const QString adb = QStandardPaths::findExecutable("adb");
+    const QString adb = findAdbExecutable();
     if (adb.isEmpty()) {
         appendLog("adb bulunamadı.");
-        setStatusText("adb PATH içinde değil");
+        setStatusText("adb bulunamadı (PATH veya Android SDK içinde yok)");
         return;
     }
 
